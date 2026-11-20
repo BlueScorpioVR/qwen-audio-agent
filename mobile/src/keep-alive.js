@@ -4,6 +4,7 @@ import { registerPlugin } from '@capacitor/core'
 // which the shared web client uses for the native idle chime.
 const VoiceKeepAlive = registerPlugin('VoiceKeepAlive')
 
+// Notification text shown by the foreground service.
 const ACTIVE_TEXT = 'Listening. Tap to open.'
 const IDLE_TEXT = 'Asleep. Say something loud or tap to reconnect.'
 
