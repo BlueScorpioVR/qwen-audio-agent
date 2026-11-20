@@ -2,7 +2,7 @@ name: Mobile
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feature/**']
     paths:
       - 'mobile/**'
       - 'web/**'
