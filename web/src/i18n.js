@@ -1,4 +1,7 @@
 const translations = {
+  '移动端': 'Mobile',
+  '取消': 'Cancel',
+  '关闭': 'Close',
   '拍照': 'Take photo',
   '拍摄照片': 'Capture photo',
   '照片预览': 'Photo preview',

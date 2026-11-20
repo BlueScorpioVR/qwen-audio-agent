@@ -57,7 +57,7 @@ export async function pairMobileGateway(pairingUrl, {
     const direct = decoded.connection
     const gatewayUrl = gatewayOriginFromWebSocketUrl(direct.websocket_url)
     if (!gatewayUrl.startsWith('https://') && !isLiteralIpv4GatewayUrl(gatewayUrl)) {
-      const error = new Error('移动端只连接 HTTPS Gateway 或连接码指定的局域网 IPv4 Gateway')
+      const error = new Error('The mobile app only connects to an HTTPS Gateway or the LAN IPv4 Gateway named in the connection code')
       error.code = 'mobile_gateway_endpoint_unsafe'
       throw error
     }
@@ -73,7 +73,7 @@ export async function pairMobileGateway(pairingUrl, {
   const pairingCode = assertGatewayPairingCodeActive(decoded.connection)
   const gateway = new URL(pairingCode.gateway_url)
   if (gateway.protocol !== 'https:') {
-    const error = new Error('移动端只连接 HTTPS Gateway，请先在电脑上开启远程访问')
+    const error = new Error('The mobile app only connects to an HTTPS Gateway. Enable remote access on your computer first.')
     error.code = 'mobile_gateway_requires_https'
     throw error
   }
@@ -83,7 +83,7 @@ export async function pairMobileGateway(pairingUrl, {
     device: { id, type: 'mobile', label },
   })
   if (!response || response.status < 200 || response.status >= 300) {
-    const message = response?.data?.error || `配对失败（${response?.status || 'network'}）`
+    const message = response?.data?.error || `Pairing failed (${response?.status || 'network'})`
     const error = new Error(message)
     error.code = response?.data?.code || 'mobile_pairing_failed'
     throw error

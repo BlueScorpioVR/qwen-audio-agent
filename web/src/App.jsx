@@ -906,8 +906,8 @@ export default function App() {
   }, [desktopLifecycle, desktopPresence.reason, publishClientState])
   const reportVisualInputState = useCallback(active => {
     publishClientState('media.visual_input.changed', active
-      ? '客户端已开启实时视觉输入；仅根据实际收到的最新画面描述当前环境。'
-      : '客户端已停止实时视觉输入，当前无法看到新的画面。之前收到的画面仅代表历史，不代表当前环境。')
+      ? 'The client turned on live visual input; describe the current surroundings only from the latest frames actually received.'
+      : 'The client stopped live visual input and cannot see new frames. Frames received earlier are history, not the current environment.')
   }, [publishClientState])
   useEffect(() => {
     if (videoCallSupported) reportVisualInputState(false)
@@ -1466,7 +1466,7 @@ export default function App() {
         onClick={resetSession}
         aria-label={t('新会话')}
         title={desktopOrbMode ? t('新会话') : undefined}
-      >{desktopOrbMode ? '＋' : t('新会话')}</button>
+      >{desktopOrbMode ? '+' : t('新会话')}</button>
       <button
         className={[
           'voice',

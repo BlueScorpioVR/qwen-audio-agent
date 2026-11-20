@@ -1,6 +1,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { configureGatewayTransport } from '../../web/src/gateway-transport.js'
+import { setRuntimeLanguage } from '../../web/src/i18n.js'
 import '../../web/src/styles.css'
 import './mobile.css'
 import { installVoiceKeepAlive } from './keep-alive.js'
@@ -20,7 +21,7 @@ function MobileApp() {
   const [profile, setProfile] = useState(null)
   const [WebApp, setWebApp] = useState(null)
   const [pairingCode, setPairingCode] = useState('')
-  const [status, setStatus] = useState('正在读取连接配置…')
+  const [status, setStatus] = useState('Loading connection settings…')
   const [busy, setBusy] = useState(false)
   const pairing = useRef(false)
 
@@ -36,7 +37,7 @@ function MobileApp() {
     if (!String(value || '').trim() || pairing.current) return
     pairing.current = true
     setBusy(true)
-    setStatus('正在安全配对…')
+    setStatus('Pairing securely…')
     try {
       const next = await pairMobileGateway(String(value).trim(), {
         request: mobilePairingRequest,
@@ -48,10 +49,10 @@ function MobileApp() {
     } catch (error) {
       setStatus(
         error.code === 'gateway_pairing_code_invalid'
-          ? '连接码无效，请在 Gateway 主机上重新生成'
+          ? 'Invalid connection code. Generate a new one on the Gateway host.'
           : error.code === 'gateway_pairing_code_expired'
-            ? '连接码已过期，请在 Gateway 主机上重新生成'
-            : error.message || '无法连接 Gateway',
+            ? 'This connection code has expired. Generate a new one on the Gateway host.'
+            : error.message || 'Could not connect to the Gateway',
       )
     } finally {
       pairing.current = false
@@ -67,10 +68,10 @@ function MobileApp() {
         if (next) return activateProfile(next)
         return mobileLaunchUrl().then(url => {
           if (url) return pair(url)
-          setStatus('请扫描 Gateway CLI 输出的连接码')
+          setStatus('Scan the connection code printed by the Gateway CLI')
         })
       })
-      .catch(error => active && setStatus(error.message || '无法读取连接配置'))
+      .catch(error => active && setStatus(error.message || 'Could not read the connection settings'))
     const removeListener = onMobileUrlOpen(url => void pair(url))
     return () => {
       active = false
@@ -87,51 +88,54 @@ function MobileApp() {
       const value = await scanGatewayPairingCode()
       if (value) await pair(value)
     } catch (error) {
-      setStatus(error.message || '没有读到配对码')
+      setStatus(error.message || 'No pairing code was read')
     } finally {
       setBusy(false)
     }
   }
 
   const disconnect = async () => {
-    if (!confirm('断开这台 Gateway？之后需要重新扫码配对。')) return
+    if (!confirm('Disconnect from this Gateway? You will need to pair again.')) return
     await removeMobileGatewayProfile()
     configureGatewayTransport()
     setProfile(null)
     setWebApp(null)
-    setStatus('已断开，请重新扫码配对')
+    setStatus('Disconnected. Scan a new code to pair again.')
   }
 
   if (profile && WebApp) return <div className="mobile-runtime">
     <button className="mobile-disconnect" type="button" onClick={disconnect}>
-      断开
+      Disconnect
     </button>
     <WebApp />
   </div>
 
   return <main className="mobile-onboarding">
     <div className="mobile-mark">Q</div>
-    <h1>连接你的 Agent</h1>
-    <p>Gateway 和后台 Agent 继续运行在你的电脑上，手机通过安全连接与它对话。</p>
+    <h1>Connect to your Agent</h1>
+    <p>The Gateway and background Agent keep running on your computer; your phone talks to them over a secure connection.</p>
     <button className="mobile-primary" type="button" disabled={busy} onClick={scan}>
-      {busy ? '正在连接…' : '扫描配对码'}
+      {busy ? 'Connecting…' : 'Scan pairing code'}
     </button>
-    <div className="mobile-divider"><span>或</span></div>
+    <div className="mobile-divider"><span>or</span></div>
     <label>
-      Gateway 连接码
+      Gateway connection code
       <textarea
         value={pairingCode}
         onChange={event => setPairingCode(event.target.value)}
-        placeholder="粘贴 Gateway 连接码"
+        placeholder="Paste the Gateway connection code"
         spellCheck={false}
       />
     </label>
     <button type="button" disabled={busy || !pairingCode.trim()} onClick={() => pair(pairingCode)}>
-      连接
+      Connect
     </button>
     <small role="status">{status}</small>
   </main>
 }
+
+// This build is English-only, whatever language the phone is set to.
+setRuntimeLanguage('en')
 
 createRoot(document.getElementById('root')).render(
   <StrictMode><MobileApp /></StrictMode>,
