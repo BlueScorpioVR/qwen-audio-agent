@@ -1,0 +1,47 @@
+import { registerPlugin } from '@capacitor/core'
+
+// Registering by name also exposes it as Capacitor.Plugins.VoiceKeepAlive,
+// which the shared web client uses for the native idle chime.
+const VoiceKeepAlive = registerPlugin('VoiceKeepAlive')
+
+const ACTIVE_TEXT = 'Listening. Tap to open.'
+const IDLE_TEXT = 'Asleep. Say something loud or tap to reconnect.'
+
+/**
+ * Keeps the app alive with the screen off while voice is in use. The web
+ * client announces its state through window events (see useIdleVoice), so it
+ * stays free of Capacitor imports.
+ */
+export function installVoiceKeepAlive() {
+  let disposed = false
+
+  const start = async text => {
+    try {
+      const result = await VoiceKeepAlive.start({ text })
+      if (!result?.started && result?.reason) {
+        console.warn('[voice-keep-alive] not started:', result.reason)
+      }
+    } catch (error) {
+      console.warn('[voice-keep-alive] start failed:', error?.message || error)
+    }
+  }
+
+  const onActive = () => {
+    if (!disposed) void start(ACTIVE_TEXT)
+  }
+  const onIdle = event => {
+    if (disposed) return
+    const idle = event?.detail?.idle === true
+    void VoiceKeepAlive.update({ text: idle ? IDLE_TEXT : ACTIVE_TEXT }).catch(() => {})
+  }
+
+  globalThis.addEventListener('qwaudio:voice-active', onActive)
+  globalThis.addEventListener('qwaudio:voice-idle', onIdle)
+
+  return () => {
+    disposed = true
+    globalThis.removeEventListener('qwaudio:voice-active', onActive)
+    globalThis.removeEventListener('qwaudio:voice-idle', onIdle)
+    void VoiceKeepAlive.stop().catch(() => {})
+  }
+}

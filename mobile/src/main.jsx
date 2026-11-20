@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { configureGatewayTransport } from '../../web/src/gateway-transport.js'
 import '../../web/src/styles.css'
 import './mobile.css'
+import { installVoiceKeepAlive } from './keep-alive.js'
 import { mobileGatewayTransport, pairMobileGateway } from './mobile-profile.js'
 import {
   loadMobileGatewayProfile,
@@ -76,6 +77,9 @@ function MobileApp() {
       removeListener()
     }
   }, [activateProfile, pair])
+
+  // Foreground service so voice keeps working with the screen off.
+  useEffect(() => (profile ? installVoiceKeepAlive() : undefined), [profile])
 
   const scan = async () => {
     setBusy(true)

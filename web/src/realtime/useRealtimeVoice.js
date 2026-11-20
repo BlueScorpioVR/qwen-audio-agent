@@ -207,6 +207,7 @@ export default function useRealtimeVoice({
   sessionId,
   enabled,
   suspended = false,
+  connectionPaused = false,
   outputMuted = false,
   inputOnlyMute = false,
   wakeWordOnly = false,
@@ -649,6 +650,17 @@ export default function useRealtimeVoice({
   }, [suspended])
 
   useEffect(() => {
+    // An idle client leaves the Gateway entirely: the Gateway then closes the
+    // paid upstream Realtime session, which a retained sleeping connection
+    // would not do. Leaving this branch (or the cleanup of the previous run)
+    // stops the old client.
+    if (connectionPaused) {
+      dispatchClientState({
+        type: GatewayServerEvent.VOICE_CONNECTION,
+        state: 'sleeping',
+      })
+      return undefined
+    }
     const mutedResponses = mutedPlaybackResponses.current
     const handleEvent = event => {
       dispatchClientState(event)
@@ -842,6 +854,7 @@ export default function useRealtimeVoice({
     publishPresence,
     clientLabel,
     connectionAttempt,
+    connectionPaused,
     clientStatesSignature,
     clientType,
     environmentState,

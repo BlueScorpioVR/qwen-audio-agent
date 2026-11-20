@@ -46,6 +46,8 @@ import useRealtimeVoice, {
   realtimeModelStatus,
   shouldClaimReleasedVoice,
 } from './realtime/useRealtimeVoice.js'
+import IdleVoicePanel from './idle/IdleVoicePanel.jsx'
+import useIdleVoice from './idle/useIdleVoice.js'
 import { requestedSessionId } from './session.js'
 import { initialVoiceEnabled } from './voice-defaults.js'
 import {
@@ -511,7 +513,16 @@ export default function App() {
     }))
   }, [])
 
+  // Idle-timeout state. The hook below needs `voice`, which in turn needs
+  // `idlePaused`, so activity is forwarded through a ref.
+  const idleSupported = !desktopOrbMode
+  const [idlePaused, setIdlePaused] = useState(false)
+  const idleTouchRef = useRef(() => {})
+  const voiceStateRef = useRef('idle')
+  const idleActive = idleSupported && idlePaused
+
   const onRealtimeEvent = useCallback(event => {
+    idleTouchRef.current(event)
     const animationEvent = spriteAnimationEventForGatewayEvent(event)
     if (animationEvent) {
       triggerSpriteAnimation(animationEvent)
@@ -848,7 +859,8 @@ export default function App() {
   )
   const voice = useRealtimeVoice({
     sessionId,
-    enabled: voiceEnabled || voiceEnabledForWakeWord,
+    enabled: (voiceEnabled && !idleActive) || voiceEnabledForWakeWord,
+    connectionPaused: idleActive,
     suspended: desktopOrbMode && desktopLifecycle === 'hidden' && !wakeWordEnabled,
     outputMuted: false,
     // WebUI and desktop share one control contract: the toggle only changes
@@ -877,6 +889,15 @@ export default function App() {
     },
   })
   gatewayCommandsRef.current = voice
+  voiceStateRef.current = voice.state
+  const idle = useIdleVoice({
+    enabled: idleSupported && voiceEnabled,
+    paused: idlePaused,
+    setPaused: setIdlePaused,
+    inputReady: voice.inputReady,
+    isBusy: () => voiceStateRef.current !== 'idle',
+  })
+  idleTouchRef.current = idle.touch
   const publishClientState = voice.publishClientState
   useEffect(() => {
     if (!desktopOrbMode) return
@@ -1404,6 +1425,7 @@ export default function App() {
   return <main className={`app${
     desktopOrbMode ? ' desktop-conversation-panel' : ''
   }`}>
+    {idleSupported && <IdleVoicePanel idle={idle} />}
     <header>
       <div className="brand"><span>V</span><div>qwen-audio-agent<small>REALTIME VOICE · LIVE</small></div></div>
       <a
