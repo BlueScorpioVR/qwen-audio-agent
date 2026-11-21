@@ -39,6 +39,13 @@ export function installVoiceKeepAlive() {
   const onIdle = event => {
     if (disposed) return
     const idle = event?.detail?.idle === true
+    const hungUp = idle && event?.detail?.reason === 'manual'
+    if (hungUp) {
+      // Nothing needs the microphone or the wake lock: drop the notification.
+      void VoiceKeepAlive.stop().catch(() => {})
+      void MediaAudio.stop({}).catch(() => {})
+      return
+    }
     void VoiceKeepAlive.update({ text: idle ? IDLE_TEXT : ACTIVE_TEXT }).catch(() => {})
     if (idle) void MediaAudio.stop({}).catch(() => {})
     else void MediaAudio.start({}).catch(() => {})

@@ -37,6 +37,9 @@ export default function useIdleVoice({
   const [settings, setSettings] = useState(() => loadIdleSettings())
   const [listening, setListening] = useState(false)
   const [listenError, setListenError] = useState('')
+  // '' while connected; 'timeout' when it fell asleep by itself; 'manual' when
+  // the user hung up. Only a timeout may wake on a loud sound.
+  const [reason, setReason] = useState('')
   const timerRef = useRef(null)
   const settingsRef = useRef(settings)
   const busyRef = useRef(isBusy)
@@ -49,8 +52,22 @@ export default function useIdleVoice({
     setSettings(current => saveIdleSettings({ ...current, ...patch }))
   }, [])
 
-  const wake = useCallback((reason = 'manual') => {
-    announce('qwaudio:voice-idle', { idle: false, reason })
+  const pause = useCallback((why, { chime = false } = {}) => {
+    if (chime && settingsRef.current.chime) void playIdleChime()
+    setReason(why)
+    announce('qwaudio:voice-idle', { idle: true, reason: why })
+    setPaused(true)
+  }, [setPaused])
+
+  /** End the live conversation now, keeping the pairing. No wake on sound. */
+  const hangUp = useCallback(() => pause('manual'), [pause])
+
+  const wake = useCallback(event => {
+    setReason('')
+    announce('qwaudio:voice-idle', {
+      idle: false,
+      reason: typeof event === 'string' ? event : 'wake',
+    })
     setPaused(false)
   }, [setPaused])
 
@@ -84,11 +101,7 @@ export default function useIdleVoice({
     const timer = createIdleTimer({
       timeoutMs,
       shouldDefer: () => busyRef.current(),
-      onIdle: () => {
-        if (settingsRef.current.chime) void playIdleChime()
-        announce('qwaudio:voice-idle', { idle: true, reason: 'timeout' })
-        setPaused(true)
-      },
+      onIdle: () => pause('timeout', { chime: true }),
     })
     timerRef.current = timer
     timer.start()
@@ -96,10 +109,19 @@ export default function useIdleVoice({
       timer.stop()
       if (timerRef.current === timer) timerRef.current = null
     }
-  }, [enabled, paused, timeoutMs, setPaused])
+  }, [enabled, paused, timeoutMs, pause])
 
-  // Local loud-sound listener while asleep.
-  const wakeOnLoud = settings.wakeOnLoudSound
+  // A hang-up requested from outside (the mobile shell header) ends the call.
+  useEffect(() => {
+    if (!enabled || paused) return undefined
+    const handler = () => hangUp()
+    globalThis.addEventListener?.('qwaudio:hang-up', handler)
+    return () => globalThis.removeEventListener?.('qwaudio:hang-up', handler)
+  }, [enabled, paused, hangUp])
+
+  // Local loud-sound listener while asleep, after an idle timeout only: a
+  // deliberate hang-up must stay silent until the user asks to reconnect.
+  const wakeOnLoud = settings.wakeOnLoudSound && reason === 'timeout'
   const thresholdDb = wakeThresholdDb(settings)
   const thresholdRef = useRef(thresholdDb)
   thresholdRef.current = thresholdDb
@@ -132,13 +154,16 @@ export default function useIdleVoice({
   }, [thresholdDb])
 
   return useMemo(() => ({
+    enabled,
     settings,
     updateSettings,
     paused,
+    reason,
     listening,
     listenError,
     wake,
+    hangUp,
     touch,
     testChime,
-  }), [settings, updateSettings, paused, listening, listenError, wake, touch, testChime])
+  }), [enabled, settings, updateSettings, paused, reason, listening, listenError, wake, hangUp, touch, testChime])
 }

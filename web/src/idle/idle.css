@@ -27,6 +27,20 @@
   font-weight: 700;
 }
 
+.idle-hangup {
+  position: fixed;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 204px);
+  z-index: 61;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #ff5c5c66;
+  background: #3a1a1de6;
+  color: #ffd7d9;
+  font-weight: 700;
+}
+
 .idle-gear {
   position: fixed;
   right: 12px;

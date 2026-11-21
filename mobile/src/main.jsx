@@ -104,6 +104,13 @@ function MobileApp() {
   }
 
   if (profile && WebApp) return <div className="mobile-runtime">
+    <button
+      className="mobile-disconnect mobile-hangup"
+      type="button"
+      onClick={() => globalThis.dispatchEvent(new Event('qwaudio:hang-up'))}
+    >
+      Hang up
+    </button>
     <button className="mobile-disconnect" type="button" onClick={disconnect}>
       Disconnect
     </button>

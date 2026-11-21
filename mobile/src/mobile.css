@@ -70,6 +70,12 @@ body { background: #08090d; }
   font-size: 11px;
 }
 
+.mobile-hangup {
+  right: calc(env(safe-area-inset-right) + 96px);
+  color: #ffd7d9;
+  border-color: #ff5c5c55;
+}
+
 .mobile-runtime .workspace:has(.conversation-turn) { padding-top: 12px; }
 .mobile-runtime .workspace:has(.conversation-turn) .hero .orb,
 .mobile-runtime .workspace:has(.conversation-turn) .hero p,

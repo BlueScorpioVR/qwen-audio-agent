@@ -47,26 +47,40 @@ const SENSITIVITY_LABELS = {
 
 export default function IdleVoicePanel({ idle }) {
   const [open, setOpen] = useState(false)
-  const { settings, updateSettings, paused, listening, listenError, wake, testChime } = idle
+  const {
+    settings, updateSettings, paused, reason, listening, listenError, wake, hangUp, testChime, enabled,
+  } = idle
+  const hungUp = reason === 'manual'
 
   return <>
     {paused && <section className="idle-banner" role="status" aria-live="polite">
       <div className="idle-banner-text">
-        <strong>Voice is asleep</strong>
+        <strong>{hungUp ? 'Call ended' : 'Voice is asleep'}</strong>
         <small>
-          {listenError
-            ? `Tap Reconnect to continue. (${listenError})`
-            : settings.wakeOnLoudSound
-              ? listening
-                ? 'The live connection is closed. Say something loud, or tap Reconnect.'
-                : 'The live connection is closed. Starting the sound listener...'
-              : 'The live connection is closed. Tap Reconnect to continue.'}
+          {hungUp
+            ? 'You are still paired. Tap Reconnect to start a new conversation.'
+            : listenError
+              ? `Tap Reconnect to continue. (${listenError})`
+              : settings.wakeOnLoudSound
+                ? listening
+                  ? 'The live connection is closed to save cost. Say something loud, or tap Reconnect.'
+                  : 'The live connection is closed. Starting the sound listener...'
+                : 'The live connection is closed. Tap Reconnect to continue.'}
         </small>
       </div>
       <button type="button" className="idle-reconnect" onClick={() => wake('button')}>
         Reconnect
       </button>
     </section>}
+
+    {!paused && enabled && <button
+      type="button"
+      className="idle-hangup"
+      onClick={hangUp}
+      aria-label="Hang up and end the live conversation"
+    >
+      Hang up
+    </button>}
 
     <button
       type="button"
