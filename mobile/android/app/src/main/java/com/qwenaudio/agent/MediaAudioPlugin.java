@@ -102,6 +102,9 @@ public class MediaAudioPlugin extends Plugin {
     private void enforceMediaRoute() {
         AudioManager am = audio();
         if (am == null) return;
+        // A real phone call owns the audio path; never pull routing out from
+        // under it. Enforcement resumes by itself after the call ends.
+        if (am.getMode() == AudioManager.MODE_IN_CALL) return;
         if (am.getMode() != AudioManager.MODE_NORMAL) {
             am.setMode(AudioManager.MODE_NORMAL);
         }
