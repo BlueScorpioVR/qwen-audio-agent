@@ -16,7 +16,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        debug {
+            // Stable debug key so a newer APK upgrades the installed app instead
+            // of failing with INSTALL_FAILED_UPDATE_INCOMPATIBLE. Set by CI from
+            // repository secrets; local builds fall back to Gradle's own key.
+            def keystorePath = System.getenv('QWEN_DEBUG_KEYSTORE')
+            if (keystorePath && file(keystorePath).exists()) {
+                storeFile file(keystorePath)
+                storeType 'PKCS12'
+                storePassword System.getenv('QWEN_DEBUG_KEYSTORE_PASSWORD')
+                keyAlias 'qwaudio'
+                keyPassword System.getenv('QWEN_DEBUG_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (System.getenv('QWEN_DEBUG_KEYSTORE')) {
+                signingConfig signingConfigs.debug
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
