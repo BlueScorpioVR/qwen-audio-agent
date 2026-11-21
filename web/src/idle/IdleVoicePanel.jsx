@@ -1,5 +1,43 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import './idle.css'
+
+function mediaAudioPlugin() {
+  return globalThis.Capacitor?.Plugins?.MediaAudio || null
+}
+
+/** Media volume of the assistant's voice; only present in the Android app. */
+function VolumeControl() {
+  const [level, setLevel] = useState(null)
+  const [max, setMax] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    mediaAudioPlugin()?.volume?.({}).then(result => {
+      if (!active || !result) return
+      setLevel(Number(result.volume))
+      setMax(Number(result.maxVolume))
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  const change = useCallback(value => {
+    setLevel(value)
+    void mediaAudioPlugin()?.volume?.({ level: value }).catch(() => {})
+  }, [])
+
+  if (level === null || max <= 0) return null
+  return <label>
+    {`Voice volume (${level}/${max})`}
+    <input
+      type="range"
+      min="0"
+      max={max}
+      step="1"
+      value={level}
+      onChange={event => change(Number(event.target.value))}
+    />
+  </label>
+}
 
 const SENSITIVITY_LABELS = {
   low: 'Low (loud sounds only)',
@@ -80,6 +118,7 @@ export default function IdleVoicePanel({ idle }) {
         />
         Play a sound when going idle
       </label>
+      <VolumeControl />
       <button type="button" onClick={() => void testChime()}>Test sound</button>
       <small>
         While asleep the microphone stays on locally to hear loud sounds. Nothing is
