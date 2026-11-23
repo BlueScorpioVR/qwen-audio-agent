@@ -519,6 +519,7 @@ export default function App() {
   const [idlePaused, setIdlePaused] = useState(false)
   const idleTouchRef = useRef(() => {})
   const voiceStateRef = useRef('idle')
+  const voiceEnabledRef = useRef(false)
   const idleActive = idleSupported && idlePaused
 
   const onRealtimeEvent = useCallback(event => {
@@ -890,6 +891,7 @@ export default function App() {
   })
   gatewayCommandsRef.current = voice
   voiceStateRef.current = voice.state
+  voiceEnabledRef.current = voiceEnabled
   const idle = useIdleVoice({
     enabled: idleSupported && voiceEnabled,
     paused: idlePaused,
@@ -898,6 +900,19 @@ export default function App() {
     isBusy: () => voiceStateRef.current !== 'idle',
   })
   idleTouchRef.current = idle.touch
+
+  // The microphone route changed on the device: re-acquire capture so the new
+  // input is actually used.
+  useEffect(() => {
+    const restart = () => {
+      if (!voiceEnabledRef.current) return
+      setVoiceEnabled(false)
+      setTimeout(() => setVoiceEnabled(true), 500)
+    }
+    globalThis.addEventListener?.('qwaudio:capture-restart', restart)
+    return () => globalThis.removeEventListener?.('qwaudio:capture-restart', restart)
+  }, [])
+
   const publishClientState = voice.publishClientState
   useEffect(() => {
     if (!desktopOrbMode) return

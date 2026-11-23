@@ -30,6 +30,8 @@ function MicrophoneControl() {
       const result = await mediaAudioPlugin()?.setInputRoute?.({ route })
       if (result?.route) setState(current => ({ ...current, route: result.route }))
       setNote(result?.error || '')
+      // Capture keeps the old device until it is re-acquired.
+      globalThis.dispatchEvent?.(new Event('qwaudio:capture-restart'))
     } catch (error) {
       setNote(error?.message || 'Could not switch microphone')
     }
