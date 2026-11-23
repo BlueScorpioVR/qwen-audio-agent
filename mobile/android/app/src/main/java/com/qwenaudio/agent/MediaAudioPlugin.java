@@ -120,10 +120,10 @@ public class MediaAudioPlugin extends Plugin {
         AudioManager am = audio();
         JSArray inputs = new JSArray();
         inputs.put(new JSObject().put("id", "phone").put("label", "Phone microphone").put("kind", "builtin"));
-        if (am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            for (AudioDeviceInfo device : am.getAvailableCommunicationDevices()) {
-                if (device.getType() != AudioDeviceInfo.TYPE_BLUETOOTH_SCO) continue;
-                String name = String.valueOf(device.getProductName());
+        if (am != null) {
+            AudioDeviceInfo sco = findSco(am);
+            if (sco != null || hasBluetoothOutput(am)) {
+                String name = sco != null ? String.valueOf(sco.getProductName()) : "";
                 inputs.put(new JSObject()
                     .put("id", "bluetooth")
                     .put("label", name.isEmpty() ? "Bluetooth headset microphone" : name)
@@ -144,13 +144,12 @@ public class MediaAudioPlugin extends Plugin {
     public void setInputRoute(PluginCall call) {
         AudioManager am = audio();
         String route = call.getString("route", "phone");
-        if ("bluetooth".equals(route) && am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            && findSco(am) == null) {
+        if ("bluetooth".equals(route) && am != null && findSco(am) == null && !hasBluetoothOutput(am)) {
             inputRoute = 0;
             prefs().edit().putString("inputRoute", "phone").apply();
             enforceMediaRoute();
             JSObject result = new JSObject().put("route", "phone");
-            result.put("error", "No Bluetooth headset microphone is connected");
+            result.put("error", "No Bluetooth headset is connected");
             call.resolve(result);
             return;
         }
@@ -158,6 +157,14 @@ public class MediaAudioPlugin extends Plugin {
         prefs().edit().putString("inputRoute", inputRoute == 1 ? "bluetooth" : "phone").apply();
         enforceMediaRoute();
         call.resolve(new JSObject().put("route", inputRoute == 1 ? "bluetooth" : "phone"));
+    }
+
+    private boolean hasBluetoothOutput(AudioManager am) {
+        for (AudioDeviceInfo device : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+            if (device.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                || device.getType() == AudioDeviceInfo.TYPE_BLE_HEADSET) return true;
+        }
+        return false;
     }
 
     private AudioDeviceInfo findSco(AudioManager am) {
@@ -177,12 +184,11 @@ public class MediaAudioPlugin extends Plugin {
         if (inputRoute == 1) {
             // Headset microphone: keep the call profile alive so capture uses
             // SCO. Output goes over the same profile, by design.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                AudioDeviceInfo sco = findSco(am);
-                if (sco != null && am.getCommunicationDevice() != sco) {
-                    am.setCommunicationDevice(sco);
-                }
-            } else {
+            AudioDeviceInfo sco = findSco(am);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && sco != null) {
+                if (am.getCommunicationDevice() != sco) am.setCommunicationDevice(sco);
+            } else if (!am.isBluetoothScoOn()) {
+                // Ask the system to bring the headset's call profile up.
                 am.startBluetoothSco();
                 am.setBluetoothScoOn(true);
             }
