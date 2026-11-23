@@ -1,13 +1,16 @@
 package com.qwenaudio.agent;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -31,6 +34,8 @@ public class MediaAudioPlugin extends Plugin {
     private Handler handler;
     private AudioFocusRequest focusRequest;
     private volatile boolean active;
+    // 0 = phone microphone with media output; 1 = Bluetooth headset mic (SCO).
+    private int inputRoute = 0;
 
     private final Runnable reassert = new Runnable() {
         @Override
@@ -40,6 +45,14 @@ public class MediaAudioPlugin extends Plugin {
             handler.postDelayed(this, REASSERT_MS);
         }
     };
+
+    private SharedPreferences prefs() {
+        return getContext().getSharedPreferences("qwaudio", Context.MODE_PRIVATE);
+    }
+
+    private void loadInputRoute() {
+        inputRoute = "bluetooth".equals(prefs().getString("inputRoute", "phone")) ? 1 : 0;
+    }
 
     private AudioManager audio() {
         if (audioManager == null) {
@@ -58,6 +71,7 @@ public class MediaAudioPlugin extends Plugin {
             return;
         }
         if (handler == null) handler = new Handler(Looper.getMainLooper());
+        loadInputRoute();
         active = true;
         requestFocus(am);
         enforceMediaRoute();
@@ -99,12 +113,84 @@ public class MediaAudioPlugin extends Plugin {
         call.resolve(result);
     }
 
+    /** Microphones the user can choose from. */
+    @PluginMethod
+    public void listInputs(PluginCall call) {
+        loadInputRoute();
+        AudioManager am = audio();
+        JSArray inputs = new JSArray();
+        inputs.put(new JSObject().put("id", "phone").put("label", "Phone microphone").put("kind", "builtin"));
+        if (am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            for (AudioDeviceInfo device : am.getAvailableCommunicationDevices()) {
+                if (device.getType() != AudioDeviceInfo.TYPE_BLUETOOTH_SCO) continue;
+                String name = String.valueOf(device.getProductName());
+                inputs.put(new JSObject()
+                    .put("id", "bluetooth")
+                    .put("label", name.isEmpty() ? "Bluetooth headset microphone" : name)
+                    .put("kind", "bluetooth"));
+            }
+        }
+        call.resolve(new JSObject()
+            .put("inputs", inputs)
+            .put("route", inputRoute == 1 ? "bluetooth" : "phone"));
+    }
+
+    /**
+     * Switch which microphone captures speech. Bluetooth microphones only work
+     * through the headset's call (SCO) profile, which also sends the reply over
+     * that profile, so output drops from A2DP quality to call quality.
+     */
+    @PluginMethod
+    public void setInputRoute(PluginCall call) {
+        AudioManager am = audio();
+        String route = call.getString("route", "phone");
+        if ("bluetooth".equals(route) && am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            && findSco(am) == null) {
+            inputRoute = 0;
+            prefs().edit().putString("inputRoute", "phone").apply();
+            enforceMediaRoute();
+            JSObject result = new JSObject().put("route", "phone");
+            result.put("error", "No Bluetooth headset microphone is connected");
+            call.resolve(result);
+            return;
+        }
+        inputRoute = "bluetooth".equals(route) ? 1 : 0;
+        prefs().edit().putString("inputRoute", inputRoute == 1 ? "bluetooth" : "phone").apply();
+        enforceMediaRoute();
+        call.resolve(new JSObject().put("route", inputRoute == 1 ? "bluetooth" : "phone"));
+    }
+
+    private AudioDeviceInfo findSco(AudioManager am) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null;
+        for (AudioDeviceInfo device : am.getAvailableCommunicationDevices()) {
+            if (device.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) return device;
+        }
+        return null;
+    }
+
     private void enforceMediaRoute() {
         AudioManager am = audio();
         if (am == null) return;
         // A real phone call owns the audio path; never pull routing out from
         // under it. Enforcement resumes by itself after the call ends.
         if (am.getMode() == AudioManager.MODE_IN_CALL) return;
+        if (inputRoute == 1) {
+            // Headset microphone: keep the call profile alive so capture uses
+            // SCO. Output goes over the same profile, by design.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                AudioDeviceInfo sco = findSco(am);
+                if (sco != null && am.getCommunicationDevice() != sco) {
+                    am.setCommunicationDevice(sco);
+                }
+            } else {
+                am.startBluetoothSco();
+                am.setBluetoothScoOn(true);
+            }
+            if (am.getMode() != AudioManager.MODE_IN_COMMUNICATION) {
+                am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+            }
+            return;
+        }
         if (am.getMode() != AudioManager.MODE_NORMAL) {
             am.setMode(AudioManager.MODE_NORMAL);
         }

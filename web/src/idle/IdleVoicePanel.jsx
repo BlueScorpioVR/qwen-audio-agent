@@ -5,6 +5,49 @@ function mediaAudioPlugin() {
   return globalThis.Capacitor?.Plugins?.MediaAudio || null
 }
 
+/**
+ * Microphone choice. Only the Android app exposes it: a Bluetooth headset mic
+ * needs the call (SCO) profile, which also carries the reply at call quality.
+ */
+function MicrophoneControl() {
+  const [state, setState] = useState(null)
+  const [note, setNote] = useState('')
+
+  const refresh = useCallback(() => {
+    let active = true
+    mediaAudioPlugin()?.listInputs?.({}).then(result => {
+      if (active && result?.inputs?.length) setState(result)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => refresh(), [refresh])
+  if (!state) return null
+
+  const change = async route => {
+    setState(current => ({ ...current, route }))
+    try {
+      const result = await mediaAudioPlugin()?.setInputRoute?.({ route })
+      if (result?.route) setState(current => ({ ...current, route: result.route }))
+      setNote(result?.error || '')
+    } catch (error) {
+      setNote(error?.message || 'Could not switch microphone')
+    }
+  }
+
+  return <label>
+    Microphone
+    <select value={state.route} onChange={event => void change(event.target.value)}>
+      {state.inputs.map(input =>
+        <option key={input.id} value={input.id}>{input.label}</option>)}
+    </select>
+    {state.route === 'bluetooth'
+      ? <small>Headset mic uses the call profile, so replies play at call quality.</small>
+      : <small>Replies play in full quality; the phone microphone records.</small>}
+    {note ? <small>{note}</small> : null}
+  </label>
+}
+
 /** Media volume of the assistant's voice; only present in the Android app. */
 function VolumeControl() {
   const [level, setLevel] = useState(null)
@@ -132,6 +175,7 @@ export default function IdleVoicePanel({ idle }) {
         />
         Play a sound when going idle
       </label>
+      <MicrophoneControl />
       <VolumeControl />
       <button type="button" onClick={() => void testChime()}>Test sound</button>
       <small>
